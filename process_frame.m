@@ -1,31 +1,31 @@
-function process_frame( frameNumber, videoFrame)
+function process_frame( filename, frameNumber, videoFrame)
 
-    persistent lastFrame stableCount  
+    persistent lastFrameResize stableCount  
     
 
-    SOGLIA_MOVIMENTO = 0.7;  % Sotto questo valore, consideriamo che è fermo
-    FRAME_ATTESA     = 40;   % Quanti frame fermi aspettare prima di scattare
+    SOGLIA_MOVIMENTO = 0.65;  % Sotto questo valore, consideriamo che è fermo
+    FRAME_ATTESA     = 35;   % Quanti frame fermi aspettare prima di scattare
 
+    videoFrameResize= rgb2lab(imresize(videoFrame, 0.25));
 
     %% Inizializzazione (solo al primo giro)
-    if isempty(lastFrame)
-        lastFrame = rgb2lab(videoFrame);
+    if isempty(lastFrameResize)
+        lastFrameResize = videoFrameResize;
         stableCount = 0;
         return; 
     end
-    
-    videoFrame_lab=rgb2lab(videoFrame);
 
-    movimento = calcola_movimento(videoFrame_lab, lastFrame);
+    movimento = calcola_movimento(videoFrameResize, lastFrameResize);
     
-    lastFrame = videoFrame_lab; 
+    lastFrameResize = videoFrameResize; 
     
     %%
     if movimento < SOGLIA_MOVIMENTO
         stableCount = stableCount + 1;
 
         if stableCount == FRAME_ATTESA
-            analizza_dadi(videoFrame,frameNumber);
+            %analizza_dadi(videoFrame,frameNumber,filename);
+            save_frame(videoFrame,frameNumber,filename);
         end
 
     else
@@ -34,24 +34,5 @@ function process_frame( frameNumber, videoFrame)
 
 end
 
-
-%%
-function diff_score = calcola_movimento(lab1, lab2)
-    % Questa funzione riceve due immagini e restituisce un SOLO numero.
-    % Più il numero è alto, più c'è movimento.
-    % Più è vicino a 0, più la scena è ferma.
-
-    % 2. Isoliamo i canali (Scartiamo la L)    
-    a1 = lab1(:,:,2); 
-    b1 = lab1(:,:,3);
-    
-    a2 = lab2(:,:,2); 
-    b2 = lab2(:,:,3);
-
-    % 3. Calcolo della Distanza (Teorema di Pitagora)
-    distanza_pixel = sqrt( (a1 - a2).^2 + (b1 - b2).^2 );
-
-    diff_score = mean(distanza_pixel(:));
-end
 
 

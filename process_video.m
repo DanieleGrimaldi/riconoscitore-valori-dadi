@@ -5,7 +5,8 @@ function process_video(filename)
     close all;
 
     vidObj = VideoReader(filename);
-    
+    [~, videoName, ~] = fileparts(filename);
+
     stopVideo = false;
 
 
@@ -14,7 +15,7 @@ function process_video(filename)
     while hasFrame(vidObj) && not(stopVideo)
         vidFrame = readFrame(vidObj);
         frameNumber = frameNumber + 1;
-        process_frame(frameNumber,vidFrame);
+        process_frame(videoName, frameNumber, vidFrame);
     end
 
     
