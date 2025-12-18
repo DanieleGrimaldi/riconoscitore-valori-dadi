@@ -1,0 +1,64 @@
+function process_frame( frameNumber, videoFrame)
+
+    persistent lastFrame stableCount background 
+    
+
+    SOGLIA_MOVIMENTO = 0.7;  % Sotto questo valore, consideriamo che è fermo
+    FRAME_ATTESA     = 40;   % Quanti frame fermi aspettare prima di scattare
+
+
+    %% Inizializzazione (solo al primo giro)
+    if isempty(lastFrame)
+        lastFrame = rgb2lab(videoFrame);
+        stableCount = 0;
+        background = rgb2lab(imread("sfondo.jpg"));
+        return; 
+    end
+    
+    videoFrame_lab=rgb2lab(videoFrame);
+
+    movimento = calcola_movimento(videoFrame_lab, lastFrame);
+    
+    lastFrame = videoFrame_lab; 
+    
+    %%
+    if movimento < SOGLIA_MOVIMENTO
+        stableCount = stableCount + 1;
+
+        if stableCount == FRAME_ATTESA
+
+
+
+            if movimento > SOGLIA_SFONDO
+
+                analizza_dadi(videoFrame,frameNumber);
+            end
+        end
+
+    else
+        stableCount = 0;
+    end
+
+end
+
+
+%%
+function diff_score = calcola_movimento(lab1, lab2)
+    % Questa funzione riceve due immagini e restituisce un SOLO numero.
+    % Più il numero è alto, più c'è movimento.
+    % Più è vicino a 0, più la scena è ferma.
+
+    % 2. Isoliamo i canali (Scartiamo la L)    
+    a1 = lab1(:,:,2); 
+    b1 = lab1(:,:,3);
+    
+    a2 = lab2(:,:,2); 
+    b2 = lab2(:,:,3);
+
+    % 3. Calcolo della Distanza (Teorema di Pitagora)
+    distanza_pixel = sqrt( (a1 - a2).^2 + (b1 - b2).^2 );
+
+    diff_score = mean(distanza_pixel(:));
+end
+
+
