@@ -1,38 +1,46 @@
 function process_frame( filename, frameNumber, videoFrame)
 
-    persistent lastFrameResize stableCount  
+    persistent lastFrameResize stableCount background lastVideoName
     
+    SOGLIA_MOVIMENTO = 0;  % Sotto questo valore, consideriamo che è fermo
+    FRAME_ATTESA     = 17;   % Quanti frame fermi aspettare prima di scattare
 
-    SOGLIA_MOVIMENTO = 0.65;  % Sotto questo valore, consideriamo che è fermo
-    FRAME_ATTESA     = 35;   % Quanti frame fermi aspettare prima di scattare
-
-    videoFrameResize= rgb2lab(imresize(videoFrame, 0.25));
+    videoFrameResize= rgb2lab(imresize(videoFrame, 0.0625));
 
     %% Inizializzazione (solo al primo giro)
-    if isempty(lastFrameResize)
+    if isempty(lastFrameResize) || ~strcmp(filename, lastVideoName)
         lastFrameResize = videoFrameResize;
+        background  = videoFrameResize;
         stableCount = 0;
+        lastVideoName = filename;
         return; 
     end
 
     movimento = calcola_movimento(videoFrameResize, lastFrameResize);
-    
+
+    %{
+    fprintf('\n');
+    fprintf(num2str(frameNumber));
+    fprintf(' ');
+    fprintf(num2str(movimento));
+    %}
+
     lastFrameResize = videoFrameResize; 
-    
     %%
-    if movimento < SOGLIA_MOVIMENTO
+    if movimento == SOGLIA_MOVIMENTO
         stableCount = stableCount + 1;
 
         if stableCount == FRAME_ATTESA
-            %analizza_dadi(videoFrame,frameNumber,filename);
-            save_frame(videoFrame,frameNumber,filename);
+            mov_background = calcola_movimento(videoFrameResize, background);
+            if mov_background > SOGLIA_MOVIMENTO
+                fprintf(' ');
+                fprintf(num2str(mov_background));
+                save_frame(videoFrame,frameNumber,filename);
+                %analizza_dadi(videoFrame,frameNumber,filename);
+            end
         end
 
     else
         stableCount = 0;
     end
-
 end
-
-
-

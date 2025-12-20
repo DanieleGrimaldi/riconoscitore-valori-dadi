@@ -15,7 +15,10 @@ function process_video(filename)
     while hasFrame(vidObj) && not(stopVideo)
         vidFrame = readFrame(vidObj);
         frameNumber = frameNumber + 1;
-        process_frame(videoName, frameNumber, vidFrame);
+        if mod(frameNumber, 2) ~= 0
+            process_frame(videoName, frameNumber, vidFrame); 
+        end
+        
     end
 
     
