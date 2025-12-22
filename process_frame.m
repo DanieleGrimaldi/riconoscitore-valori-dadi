@@ -33,10 +33,9 @@ function process_frame( filename, frameNumber, videoFrame)
         if stableCount == FRAME_ATTESA
             mov_background = calcola_movimento(videoFrameResize, background);
             if mov_background > SOGLIA_MOVIMENTO
-                fprintf(' ');
-                fprintf(num2str(mov_background));
-                save_frame(videoFrame,frameNumber,filename);
-                %analizza_dadi(videoFrame,frameNumber,filename);
+                %save_frame(videoFrame,frameNumber,filename);
+                dadi = estrai_dadi(videoFrame,videoFrameResize,background);
+
             end
         end
 

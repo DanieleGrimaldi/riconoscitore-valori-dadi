@@ -8,7 +8,7 @@ function pixel_totali_cambiati = calcola_movimento(lab1, lab2)
 
 
     distanza_pixel = sqrt( (a1 - a2).^2 + (b1 - b2).^2 );
-    SOGLIA_COLORE = 15.0;
+    SOGLIA_COLORE = 10;
     pixel_cambiati = distanza_pixel > SOGLIA_COLORE;
     pixel_totali_cambiati = sum(pixel_cambiati(:));% Somma tutti gli 1
 end
