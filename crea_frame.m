@@ -3,7 +3,7 @@ clear all;
 
 tic;
 
-cartella = 'dati';
+cartella = 'train';
 files = dir(fullfile(cartella, '*.mp4')); % Cambia *.mp4 se sono .avi o .mov
 
 fprintf('Trovati %d video da elaborare.\n', length(files));
