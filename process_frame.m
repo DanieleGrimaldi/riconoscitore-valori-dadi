@@ -34,7 +34,7 @@ function process_frame( filename, frameNumber, videoFrame)
             mov_background = calcola_movimento(videoFrameResize, background);
             if mov_background > SOGLIA_MOVIMENTO
                 %save_frame(videoFrame,frameNumber,filename,"frame");
-                dadi = estrai_dadi(videoFrame,videoFrameResize,background,filename,frameNumber);
+                %dadi = estrai_dadi(videoFrame,videoFrameResize,background,filename,frameNumber);
 
             end
         end

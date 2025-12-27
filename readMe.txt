@@ -8,3 +8,34 @@ ho successivamente provato una resize all'inizio di 0.25 aumentando subito un no
 successivamente ho notato che il primo frame ha sempre come soggetto lo sfondo, cosi ho deciso di salvarlo in una variabile e confrontarlo con l'immagine che stavo salvando in modo da eliminare tutti i frame di sfondo.
 
 
+cart su dati di training                 
+TABELLA RISULTATI (PIXEL)
+------------------------------------------------------------
+                  | PREDETTO: SFONDO | PREDETTO: DADO
+------------------|------------------|------------------
+REALE: SFONDO     |      6265439     |         3196
+                  | (Corretti)       | (Errori)
+------------------|------------------|------------------
+REALE: DADO       |         9229     |       576845
+                  | (Errori)         | (Corretti)
+------------------------------------------------------------
+
+Il modello riconosce il 99.95% dello sfondo correttamente.
+Il modello riconosce il 98.43% dei dadi correttamente. 
+
+
+bilanciando con il random 
+
+                TABELLA RISULTATI (PIXEL)
+------------------------------------------------------------
+                  | PREDETTO: SFONDO | PREDETTO: DADO
+------------------|------------------|------------------
+REALE: SFONDO     |       584447     |         1627
+                  | (Corretti)       | (Errori)
+------------------|------------------|------------------
+REALE: DADO       |         4644     |       581430
+                  | (Errori)         | (Corretti)
+------------------------------------------------------------
+
+Il modello riconosce il 99.72% dello sfondo correttamente.
+Il modello riconosce il 99.21% dei dadi correttamente.
