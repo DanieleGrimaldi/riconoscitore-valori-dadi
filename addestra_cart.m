@@ -1,83 +1,106 @@
 clear all; close all; clc;
 
-% --- CONFIGURAZIONE ---
-file_dadi   = 'dati_dadi_training.mat';   % Creato da impacchetta_pixel.m
-file_sfondo = 'dati_sfondo_training.mat'; % Creato da impacchetta_sfondo.m
-file_output = 'Modello_Pixel_Finale.mat'; % Il cervello addestrato
+% --- CONFIGURAZIONE CARTELLE ---
+dir_tagliati = 'frame-tagliati'; % Input: Immagini PNG dei dadi (con trasparenza o sfondo nero)
+dir_mask     = 'mask';           % Output 1: Dove salvare le maschere binarie
+file_texture = 'TEXTURE_DADI_ALL.png';      % Output 2: Immagine pixel compressi
+file_mat     = 'dati_dadi_training_all.mat'; % Output 3: Dati .mat per il training
 
-fprintf('--- TRAINING FINALE CART ---\n');
-
-% 1. CARICAMENTO DATI
-if ~isfile(file_dadi) || ~isfile(file_sfondo)
-    error('Mancano i file .mat! Esegui prima gli script di impacchettamento.');
+% Crea cartella mask se non esiste
+if ~exist(dir_mask, 'dir')
+    mkdir(dir_mask);
+    fprintf('Cartella "%s" creata.\n', dir_mask);
 end
 
-load(file_dadi, 'pixel_dadi');     % Carica la variabile 'pixel_dadi'
-load(file_sfondo, 'pixel_sfondo'); % Carica la variabile 'pixel_sfondo'
-
-num_dadi   = size(pixel_dadi, 1);
-num_sfondo = size(pixel_sfondo, 1);
-
-fprintf('1. Dati Caricati:\n');
-fprintf('   - Pixel DADI:   %d\n', num_dadi);
-fprintf('   - Pixel SFONDO: %d\n', num_sfondo);
-
-% 2. BILANCIAMENTO (Undersampling)
-% L'albero impara meglio se vede 50% dadi e 50% sfondo.
-% Di solito lo sfondo ha molti più pixel. Ne prendiamo un numero uguale ai dadi.
-
-n_train = min(num_dadi, num_sfondo);
-fprintf('2. Bilanciamento Dataset su %d campioni per classe.\n', n_train);
-
-% Mischiamo e selezioniamo i pixel dello sfondo
-idx_bg = randperm(num_sfondo, n_train);
-pixel_sfondo_bilanciati = pixel_sfondo(idx_bg, :);
-
-% Se avessimo meno pixel di dadi (raro), prenderemmo tutti i dadi
-idx_dadi = randperm(num_dadi, n_train); 
-pixel_dadi_bilanciati = pixel_dadi(idx_dadi, :);
-
-% 3. CREAZIONE DATASET (X e Y)
-% X = Features (L, A, B)
-% Y = Etichette (1=Dado, 0=Sfondo)
-
-X = [pixel_dadi_bilanciati; pixel_sfondo_bilanciati];
-Y = [ones(n_train, 1); zeros(n_train, 1)];
-
-% 4. ADDESTRAMENTO
-fprintf('3. Addestramento in corso... ');
-tic;
-% MinLeafSize = 50: Evita l'overfitting su singoli pixel rumorosi
-TreeModel = fitctree(X, Y, ...
-    'MinLeafSize', 50, ... 
-    'PredictorNames', {'L', 'A', 'B'}, ...
-    'ClassNames', [0, 1]); 
-t = toc;
-fprintf('Fatto in %.2f secondi.\n', t);
-
-% 5. SALVATAGGIO
-save(file_output, 'TreeModel');
-fprintf('\n>>> MODELLO SALVATO: %s <<<\n', file_output);
-
-% --- VERIFICA RAPIDA (Test visivo sullo Sfondo) ---
-% Proviamo il modello sull'immagine di sfondo originale.
-% Dovrebbe venire QUASI TUTTA NERA (perché è sfondo).
-if isfile('SFONDO_ROI.jpg')
-    img_test = imread('SFONDO_ROI.jpg');
-else
-    img_test = imread('SFONDO.jpg');
+% Ottieni lista file PNG
+files = dir(fullfile(dir_tagliati, '*.png')); 
+if isempty(files)
+    % Se non trova png, prova jpg
+    files = dir(fullfile(dir_tagliati, '*.jpg'));
 end
 
-fprintf('Verifica modello sullo sfondo...\n');
-lab_test = rgb2lab(img_test);
-[h, w, ~] = size(img_test);
-X_test = reshape(lab_test, h*w, 3);
+if isempty(files)
+    error('Nessuna immagine trovata in %s', dir_tagliati);
+end
 
-pred = predict(TreeModel, X_test);
-mask_pred = reshape(pred, h, w);
+fprintf('Trovati %d file. Inizio elaborazione...\n', length(files));
 
-figure('Name', 'Test Qualità Modello', 'NumberTitle', 'off');
-subplot(1,2,1); imshow(img_test); title('Immagine Sfondo');
-subplot(1,2,2); imshow(mask_pred); title('Classificazione (Dovrebbe essere NERO)');
+% Accumulatore per tutti i pixel (L, A, B)
+accumulo_pixel_lab = [];
+accumulo_pixel_rgb = [];
 
-fprintf('Controlla la finestra: se l''immagine a destra è nera (o con pochi puntini bianchi), il modello è PERFETTO.\n');
+count = 0;
+
+% --- CICLO DI ELABORAZIONE ---
+for k = 1:length(files)
+    nome_file = files(k).name;
+    full_path = fullfile(dir_tagliati, nome_file);
+    
+    % 1. Carica Immagine (gestisce anche Alpha channel se PNG)
+    [img, ~, alpha] = imread(full_path);
+    
+    % 2. Crea la Maschera Binaria
+    % Se c'è il canale Alpha (trasparenza), usiamo quello
+    if ~isempty(alpha)
+        mask = alpha > 0;
+    else
+        % Altrimenti usiamo la luminosità (se lo sfondo è nero)
+        % Se la somma dei colori > 10 (per evitare rumore nero assoluto)
+        mask = sum(img, 3) > 10;
+    end
+    
+    % 3. Salva la Maschera nella cartella 'mask'
+    path_mask = fullfile(dir_mask, nome_file);
+    imwrite(mask, path_mask);
+    
+    % 4. Estrazione Pixel per il Training
+    if sum(mask(:)) > 0
+        % Converti in LAB
+        lab = rgb2lab(img);
+        
+        % Estrai solo i pixel del dado
+        L = lab(:,:,1); A = lab(:,:,2); B = lab(:,:,3);
+        R = img(:,:,1); G = img(:,:,2); B_rgb = img(:,:,3);
+        
+        pixel_validi_lab = [L(mask), A(mask), B(mask)];
+        pixel_validi_rgb = [R(mask), G(mask), B_rgb(mask)];
+        
+        % Aggiungi al mucchio
+        accumulo_pixel_lab = [accumulo_pixel_lab; pixel_validi_lab];
+        accumulo_pixel_rgb = [accumulo_pixel_rgb; pixel_validi_rgb];
+        
+        count = count + 1;
+    end
+    
+    if mod(k, 50) == 0, fprintf('.'); end
+end
+
+fprintf('\nElaborazione completata.\n');
+fprintf('Totale pixel dadi estratti: %d\n', size(accumulo_pixel_lab, 1));
+
+% --- CREAZIONE IMMAGINE COMPRESSA (TEXTURE) ---
+num_pixels = size(accumulo_pixel_rgb, 1);
+lato = ceil(sqrt(num_pixels));
+
+% Crea tela nera
+texture_flat = zeros(lato * lato, 3, 'uint8');
+texture_flat(1:num_pixels, :) = accumulo_pixel_rgb;
+
+% Reshape in quadrato
+texture_finale = reshape(texture_flat, [lato, lato, 3]);
+
+% Salva Texture e Dati
+imwrite(texture_finale, file_texture);
+
+% Salviamo col nome variabile 'pixel_dadi' per compatibilità col training
+pixel_dadi = accumulo_pixel_lab; 
+save(file_mat, 'pixel_dadi');
+
+fprintf('1. Maschere salvate in: %s/\n', dir_mask);
+fprintf('2. Texture visiva salvata: %s\n', file_texture);
+fprintf('3. Dati Training salvati: %s\n', file_mat);
+
+% --- MOSTRA RISULTATO ---
+figure; 
+subplot(1,2,1); imshow(texture_finale); title('Tutti i Dadi Compressi');
+subplot(1,2,2); imshow(mask); title(['Esempio Maschera: ' nome_file]);
