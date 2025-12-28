@@ -1,7 +1,7 @@
 clear all; close all; clc;
 
 % --- 1. CONFIGURAZIONE ---
-cartella_frame = 'test/frame';
+cartella_frame = 'frame';
 file_sfondo    = 'dati_sfondo_clean.mat';
 file_dadi      = 'dati_dadi_clean.mat';
 

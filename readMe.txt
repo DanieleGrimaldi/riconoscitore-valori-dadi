@@ -39,3 +39,33 @@ REALE: DADO       |         4644     |       581430
 
 Il modello riconosce il 99.72% dello sfondo correttamente.
 Il modello riconosce il 99.21% dei dadi correttamente.
+
+
+test su dati di test 
+
+MATRICE DI CONFUSIONE (Totale Pixel):
+				| Reale: DADO 	| Reale: SFONDO
+Predetto: DADO 	| TP: 100189 	| FP: 37690
+Predetto: SFONDO	| FN: 11774 	| TN: 7223147
+----------------------------------------
+METRICHE CHIAVE:
+Accuracy:  99.33%
+IoU:       0.6695 (Obiettivo > 0.7)
+Precision: 72.66% (Affidabilità rilevamento)
+Recall:    89.48% (Capacità di non perdere dadi)
+
+
+con post processing
+========================================
+RISULTATI TEST SU 8 FILES
+========================================
+MATRICE DI CONFUSIONE (Totale Pixel):
+				| Reale: DADO 	| Reale: SFONDO
+Predetto: DADO 	| TP: 102792 	| FP: 19834
+Predetto: SFONDO	| FN: 9171 	| TN: 7241003
+----------------------------------------
+METRICHE CHIAVE:
+Accuracy:  99.61%
+IoU:       0.7799 (Obiettivo > 0.7)
+Precision: 83.83% (Affidabilità rilevamento)
+Recall:    91.81% (Capacità di non perdere dadi)
