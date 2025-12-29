@@ -54,7 +54,9 @@ function [X, mask_validi] = pre_processing(img)
     
     % 1. Filtro Pixel Validi
     % Scarta lo sfondo nero puro (o quasi nero) per non confondere l'albero
-    mask_validi = sum(img, 3) > 0;
+    mask_vassoio = trova_maschera_vassoio(img);
+    
+    mask_validi = mask_vassoio & sum(img, 3) > 0;
     
     % Se non c'è nulla di valido, ritorna vuoto
     if ~any(mask_validi(:))
