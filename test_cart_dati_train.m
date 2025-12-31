@@ -98,7 +98,6 @@ for k = 1:length(files_jpg)
     subplot(2,2,2); imshow(img_masked); title('Dopo Maschera Vassoio');
     subplot(2,2,3); imshow(mask_predetta); title('Output Cart Dadi');
     subplot(2,2,4); imshow(error_map); title('Verde=OK, Rosso=FP, Blu=Perso');
-    drawnow;
     
     % Opzionale: Pausa per vedere ogni frame
     % pause(0.2); 

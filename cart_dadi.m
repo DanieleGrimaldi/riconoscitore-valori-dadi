@@ -49,13 +49,11 @@ end
 %%
 
 function [X, mask_validi] = pre_processing(img)
-    % PRE_PROCESSING: Prepara i dati per l'albero decisionale.
-    % Deve essere IDENTICO alla logica usata nel training (LAB + filtro nero).
+    % PRE_PROCESSING: Prepara i dati (L, A, B + TEXTURE).
     
-    % 1. Filtro Pixel Validi
-    % Scarta lo sfondo nero puro (o quasi nero) per non confondere l'albero
+    % 1. Filtro Pixel Validi (Vassoio + Non Nero)
+    % Assicurati che la funzione trova_maschera_vassoio sia definita nel file
     mask_vassoio = trova_maschera_vassoio(img);
-    
     mask_validi = mask_vassoio & sum(img, 3) > 0;
     
     % Se non c'è nulla di valido, ritorna vuoto
@@ -64,16 +62,22 @@ function [X, mask_validi] = pre_processing(img)
         return;
     end
     
-    % 2. Conversione Spazio Colore (LAB)
+    % 2. Conversione LAB
     lab_img = rgb2lab(img);
-    
     L = lab_img(:,:,1);
     A = lab_img(:,:,2);
     B = lab_img(:,:,3);
     
-    % 3. Creazione Matrice Features (N x 3)
-    % Estrae solo i valori dove mask_validi è true
-    X = [L(mask_validi), A(mask_validi), B(mask_validi)];
+    % --- NUOVO: CALCOLO TEXTURE (Fondamentale) ---
+    % Normalizziamo L tra 0 e 1 per coerenza con il training
+    L_norm = rescale(L); 
+    % Calcoliamo la ruvidità (deviazione standard)
+    Texture = stdfilt(L_norm, true(3));
+    % ---------------------------------------------
+    
+    % 3. Creazione Matrice Features (N x 4)
+    % Ora passiamo 4 colonne: [L, A, B, Texture]
+    X = [L(mask_validi), A(mask_validi), B(mask_validi), Texture(mask_validi)];
 end
 
 %%
