@@ -1,0 +1,155 @@
+function somma_dadi = estrai_dadi(frame_originale, namev, numf)
+    % 1. Rilevamento Macro-Aree dei Dadi
+    mask = cart_dadi(frame_originale);
+    mask = imclearborder(mask);
+    maschera_macro = trova_picchi_watershed(frame_originale, mask);
+    
+    % Preparazione variabili
+    raggio_bollino = 20; % Dimensione area da analizzare
+    if size(frame_originale, 3) == 3
+        img_gray = rgb2gray(frame_originale);
+    else
+        img_gray = frame_originale;
+    end
+    
+    somma_dadi = 0; % Qui sommeremo i valori predetti (futuro)
+    
+    % 2. Etichettatura oggetti trovati
+    [L, num_oggetti] = bwlabel(maschera_macro);
+    
+    % Per visualizzazione (opzionale, se vuoi vedere cosa succede)
+    figure; clf; imshow(frame_originale); hold on; title('Analisi Real-Time');
+    
+    % 3. CICLO SU OGNI DADO TROVATO
+    for i = 1:num_oggetti
+        dado_mask = (L == i);
+        
+        % --- A. TROVA IL CENTRO REALE (Logica salva_dadi) ---
+        % Sbucciatura per togliere ombre esterne
+        dado_core = imerode(dado_mask, strel('disk', 5, 0));
+        if sum(dado_core(:)) == 0, dado_core = dado_mask; end % Fallback
+        
+        % Baricentro pesato sulla luminosità (WeightedCentroid)
+        props = regionprops(dado_core, img_gray, 'WeightedCentroid');
+        
+        if ~isempty(props)
+            centro = props.WeightedCentroid;
+            c_x = round(centro(1));
+            c_y = round(centro(2));
+            
+            % Disegna centro (debug)
+            plot(c_x, c_y, 'r+', 'MarkerSize', 10, 'LineWidth', 2);
+            
+            % --- B. RITAGLIO IN MEMORIA (CROP) ---
+            % Creiamo la maschera circolare localizzata (il "bollino")
+            mask_punto = false(size(maschera_macro));
+            mask_punto(c_y, c_x) = true;
+            mask_cerchio = imdilate(mask_punto, strel('disk', raggio_bollino, 0));
+            
+            % Troviamo il bounding box per ritagliare
+            props_box = regionprops(mask_cerchio, 'BoundingBox');
+            if isempty(props_box), continue; end
+            
+            bbox = props_box(1).BoundingBox;
+            
+            % Ritaglio Immagine (RGB) e Maschera (Alpha)
+            img_crop = imcrop(frame_originale, bbox);
+            alpha_crop = imcrop(mask_cerchio, bbox);
+            
+            % --- C. CHIAMATA A ESTRAI_CIFRA ---
+            % Qui avviene la magia: segmentiamo il numero usando K-Means
+            mask_numero = estrai_cifra(img_crop, alpha_crop);
+            
+            % --- D. (FUTURO) CLASSIFICAZIONE KNN ---
+            % Qui calcoleremo i Momenti di Hu e chiederemo al KNN che numero è.
+            % Per ora visualizziamo solo la maschera risultante sul grafico
+            
+            % Visualizzazione "In-Place" (Disegniamo il contorno del numero trovato)
+            % Dobbiamo riportare le coordinate del crop a quelle globali
+            [h_c, w_c] = size(mask_numero);
+            x_start = floor(bbox(1));
+            y_start = floor(bbox(2));
+            
+            % Creiamo una mini-maschera grande quanto l'immagine originale
+            mask_globale = false(size(maschera_macro));
+            mask_globale(y_start+1 : y_start+h_c, x_start+1 : x_start+w_c) = mask_numero;
+            
+            visboundaries(mask_globale, 'Color', 'y', 'LineWidth', 1);
+        end
+    end
+    hold off;
+end
+
+% =========================================================
+%  FUNZIONE ESTRAI_CIFRA (Logica "Recupero Totale")
+% =========================================================
+function mask_finale = estrai_cifra(img_rgb, alpha)
+    % Questa funzione implementa K-Means + Logica Baricentro
+    % (È la versione "Recupero Totale" che abbiamo perfezionato)
+
+    min_area = 20; % Soglia minima area (più bassa qui perché l'img è piccola)
+
+    % 1. Pulizia Input
+    if size(img_rgb, 3) == 4, img_rgb = img_rgb(:,:,1:3); end
+    
+    % Gestione Alpha (se vuoto crea un dummy)
+    if isempty(alpha)
+        alpha = ones(size(img_rgb,1), size(img_rgb,2)); 
+        alpha([1,end],:) = 0; alpha(:,[1,end]) = 0;
+    end
+
+    % 2. K-Means (LAB) su TUTTA l'immagine ritagliata
+    % Nota: Usiamo try-catch o replicates 1 per velocità e sicurezza su img piccole
+    try
+        lab = rgb2lab(img_rgb);
+        ab = double(lab);
+        nrows = size(ab,1); ncols = size(ab,2);
+        data = reshape(ab, nrows*ncols, 3);
+        
+        [idx, ~] = kmeans(data, 2, 'Distance', 'sqeuclidean', 'Replicates', 1);
+        pixel_labels = reshape(idx, nrows, ncols);
+    catch
+        % Se K-means fallisce (img troppo piccola o uniforme), restituisci vuoto
+        mask_finale = false(size(alpha));
+        return;
+    end
+    
+    % 3. Identificazione Sfondo (tramite Alpha del cerchio)
+    mask_trasparente = (alpha == 0);
+    
+    if sum(mask_trasparente(:)) > 0
+        pixel_nella_trasparenza = pixel_labels(mask_trasparente);
+        bg_cluster = mode(pixel_nella_trasparenza);
+    end
+    
+    % 4. Maschera Grezza (TUTTO ciò che non è sfondo)
+    mask_raw = (pixel_labels ~= bg_cluster);
+
+    % 5. Selezione Baricentro (Conn 4)
+    cc = bwconncomp(mask_raw, 4); 
+    stats = regionprops(cc, 'Area', 'Centroid', 'PixelIdxList');
+    valid_indices = find([stats.Area] >= min_area);
+    
+    if isempty(valid_indices)
+        mask_finale = false(nrows, ncols);
+        return;
+    end
+    
+    % Trova l'oggetto più centrale nel ritaglio
+    img_center = [ncols/2, nrows/2]; 
+    best_idx = -1; 
+    min_dist = Inf;
+    
+    for k = valid_indices
+        dist = norm(stats(k).Centroid - img_center);
+        if dist < min_dist
+            min_dist = dist;
+            best_idx = k;
+        end
+    end
+    
+    % 6. Ricostruzione Finale
+    mask_finale = false(nrows, ncols);
+    mask_finale(stats(best_idx).PixelIdxList) = true;
+
+end

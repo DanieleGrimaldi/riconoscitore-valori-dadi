@@ -1,76 +1,32 @@
-function somma_dadi = estrai_dadi(frame_originale,namev,numf)
-
+function somma_dadi = estrai_dadi(frame_originale, namev, numf)
+    % Rilevamento Macro-Aree
     mask = cart_dadi(frame_originale);
-
     mask = imclearborder(mask);
-
-    maschera_pulita = trova_picchi_watershed(frame_originale, mask);
-
-    salva_dadi(frame_originale, maschera_pulita, namev, numf);
-
-    dadi_isolati = frame_originale;
-    mask_3d = repmat(mask, [1, 1, 3]);
-    dadi_isolati(~mask_3d) = 0;
-
-    %{
-    % --- 4. VISUALIZZAZIONE ---
-    figure('Name', 'Estrazione Centri Dadi');
+    maschera_macro = trova_picchi_watershed(frame_originale, mask);
     
-    % Subplot 1: Immagine Originale + Contorni Centri
-    subplot(1, 2, 1);
-    imshow(frame_originale); 
-    hold on;
-    % Visboundaries disegna i contorni della maschera sull'immagine RGB
-    visboundaries(mask, 'Color', 'g', 'LineWidth', 2);
-    title('Dadi Rilevati (Verde = Centro)');
-    
-    % Subplot 2: Maschera Finale (Bianco e Nero)
-    subplot(1, 2, 2);
-    imshow(dadi_isolati);
-    title('Maschera Centri (Erosa & No Bordi)');
-    
-    % Feedback in console
-    num_dadi = bwconncomp(mask).NumObjects;
-    fprintf('Dadi validi trovati (centri): %d\n', num_dadi);
-    %}
-    somma_dadi = 10;
-end
-
-function salva_dadi(immagine_originale, maschera_separata, namev, numf)
-    % SALVA_DADI - Versione "ANTI-OMBRA" con Salvataggio Trasparente
-    % Salva solo i pixel del cerchio centrale ("bollino"), rendendo trasparente il resto.
-    
-    % --- CONFIGURAZIONE ---
-    cartella_out = 'numeri';
-    if ~exist(cartella_out, 'dir'), mkdir(cartella_out); end
-    
-    raggio_bollino = 15; % Raggio del cerchio da salvare
-    
-    % 1. Prepara immagine grigia per calcolo luce
-    if size(immagine_originale, 3) == 3
-        img_gray = rgb2gray(immagine_originale);
+    raggio_bollino = 20; 
+    if size(frame_originale, 3) == 3
+        img_gray = rgb2gray(frame_originale);
     else
-        img_gray = immagine_originale;
+        img_gray = frame_originale;
     end
     
-    % 2. Etichettatura dadi
-    [L, num_oggetti] = bwlabel(maschera_separata);
+    somma_dadi = 0; 
+    [L, num_oggetti] = bwlabel(maschera_macro);
     
-    % 3. CICLO SU OGNI DADO
+    % --- 1. FASE DI CALCOLO (Nessun disegno qui) ---
+    
+    % Creiamo una struttura per salvare i risultati di questo frame
+    dadi_rilevati = struct('bbox', {}, 'centro', {}, 'valore', {});
+    conteggio = 0;
+
     for i = 1:num_oggetti
         dado_mask = (L == i);
         
-        % --- STEP A: SBUCCIATURA (Peeling) ---
-        % Rimuove l'ombra esterna per non falsare il centro
+        % Logica Baricentro
         dado_core = imerode(dado_mask, strel('disk', 5, 0));
+        if sum(dado_core(:)) == 0, dado_core = dado_mask; end 
         
-        % Sicurezza: se il dado scompare, annulla l'erosione
-        if sum(dado_core(:)) == 0
-            dado_core = dado_mask;
-        end
-        
-        % --- STEP B: BARICENTRO PESATO (Weighted Centroid) ---
-        % Trova il centro della luce (il numero)
         props = regionprops(dado_core, img_gray, 'WeightedCentroid');
         
         if ~isempty(props)
@@ -78,37 +34,139 @@ function salva_dadi(immagine_originale, maschera_separata, namev, numf)
             c_x = round(centro(1));
             c_y = round(centro(2));
             
-            % Controlli bordi
-            c_x = max(1, min(c_x, size(maschera_separata, 2)));
-            c_y = max(1, min(c_y, size(maschera_separata, 1)));
-            
-            % --- STEP C: SALVATAGGIO DEI SOLI PIXEL DEL CERCHIO ---
-            
-            % 1. Creiamo la maschera del "bollino" su tutta l'immagine
-            mask_punto = false(size(maschera_separata));
+            % Crop
+            mask_punto = false(size(maschera_macro));
             mask_punto(c_y, c_x) = true;
             mask_cerchio = imdilate(mask_punto, strel('disk', raggio_bollino, 0));
             
-            % 2. Troviamo il rettangolo minimo per ritagliare il file piccolo
             props_box = regionprops(mask_cerchio, 'BoundingBox');
+            if isempty(props_box), continue; end
+            bbox = props_box(1).BoundingBox;
             
-            if ~isempty(props_box)
-                bbox = props_box(1).BoundingBox;
+            img_crop = imcrop(frame_originale, bbox);
+            alpha_crop = imcrop(mask_cerchio, bbox);
+            
+            % Estrazione Maschera Numero
+            mask_numero = estrai_cifra(img_crop, alpha_crop);
+            
+            % Se la maschera è valida, chiama il KNN
+            if sum(mask_numero(:)) > 5 
+                valore = decodifica_cifra(mask_numero);
                 
-                % 3. Ritagliamo l'Immagine (Colori)
-                img_crop = imcrop(immagine_originale, bbox);
+                % SALVIAMO IL RISULTATO IN MEMORIA
+                conteggio = conteggio + 1;
+                dadi_rilevati(conteggio).bbox = bbox;
+                dadi_rilevati(conteggio).centro = [c_x, c_y];
+                dadi_rilevati(conteggio).valore = valore;
                 
-                % 4. Ritagliamo la Maschera (Trasparenza)
-                % Questa maschera dice al PNG quali pixel mostrare e quali nascondere
-                alpha_crop = imcrop(mask_cerchio, bbox);
-                
-                % 5. Salvataggio con Canale Alpha
-                nome_file = sprintf('%s_f%04d_d%d.png', namev, numf, i);
-                path_completo = fullfile(cartella_out, nome_file);
-                
-                % Scriviamo il file: 'Alpha' rende trasparente tutto ciò che è nero nella maschera
-                imwrite(img_crop, path_completo, 'Alpha', double(alpha_crop));
+                somma_dadi = somma_dadi + valore;
             end
         end
     end
+    
+    % --- 2. FASE DI VISUALIZZAZIONE (Disegno unico finale) ---
+    
+    % Usa figure(100) per mantenere sempre la stessa finestra e non aprirne 1000
+    figure; 
+    clf; % Pulisce la finestra dal frame precedente
+    
+    % SINISTRA: Immagine Originale Pulita
+    subplot(1, 2, 1);
+    imshow(frame_originale);
+    title(['Frame ' num2str(numf) ' - Originale']);
+    
+    % DESTRA: Immagine con Sovraimpressioni
+    subplot(1, 2, 2);
+    imshow(frame_originale);
+    hold on;
+    title(['Rilevamento - Somma: ' num2str(somma_dadi)]);
+    
+    % Disegniamo tutti i dadi trovati
+    for k = 1:length(dadi_rilevati)
+        d = dadi_rilevati(k);
+        
+        % Rettangolo Blu
+        rectangle('Position', d.bbox, 'EdgeColor', 'b', 'LineWidth', 2);
+        
+        % Numero Giallo
+        text(d.centro(1), d.centro(2), num2str(d.valore), ...
+            'Color', 'y', 'FontSize', 22, 'FontWeight', 'bold', ...
+            'HorizontalAlignment', 'center');
+    end
+    hold off;
+    
+    % Forza l'aggiornamento grafico
+    drawnow;
+end
+
+% =========================================================
+%  FUNZIONE ESTRAI_CIFRA (Logica "Recupero Totale")
+% =========================================================
+function mask_finale = estrai_cifra(img_rgb, alpha)
+    % Questa funzione implementa K-Means + Logica Baricentro
+    % (È la versione "Recupero Totale" che abbiamo perfezionato)
+
+    min_area = 20; % Soglia minima area (più bassa qui perché l'img è piccola)
+
+    % 1. Pulizia Input
+    if size(img_rgb, 3) == 4, img_rgb = img_rgb(:,:,1:3); end
+    
+    % Gestione Alpha (se vuoto crea un dummy)
+    if isempty(alpha)
+        alpha = ones(size(img_rgb,1), size(img_rgb,2)); 
+        alpha([1,end],:) = 0; alpha(:,[1,end]) = 0;
+    end
+
+    % 2. K-Means (LAB) su TUTTA l'immagine ritagliata
+    % Nota: Usiamo try-catch o replicates 1 per velocità e sicurezza su img piccole
+    try
+        lab = rgb2lab(img_rgb);
+        ab = double(lab);
+        nrows = size(ab,1); ncols = size(ab,2);
+        data = reshape(ab, nrows*ncols, 3);
+        
+        [idx, ~] = kmeans(data, 2, 'Distance', 'sqeuclidean', 'Replicates', 1);
+        pixel_labels = reshape(idx, nrows, ncols);
+    catch
+        % Se K-means fallisce (img troppo piccola o uniforme), restituisci vuoto
+        mask_finale = false(size(alpha));
+        return;
+    end
+    
+    % 3. Identificazione Sfondo (tramite Alpha del cerchio)
+    mask_trasparente = (alpha == 0);
+    
+    pixel_nella_trasparenza = pixel_labels(mask_trasparente);
+    bg_cluster = mode(pixel_nella_trasparenza);
+    
+    % 4. Maschera Grezza (TUTTO ciò che non è sfondo)
+    mask_raw = (pixel_labels ~= bg_cluster);
+
+    % 5. Selezione Baricentro (Conn 4)
+    cc = bwconncomp(mask_raw, 4); 
+    stats = regionprops(cc, 'Area', 'Centroid', 'PixelIdxList');
+    valid_indices = find([stats.Area] >= min_area);
+    
+    if isempty(valid_indices)
+        mask_finale = false(nrows, ncols);
+        return;
+    end
+    
+    % Trova l'oggetto più centrale nel ritaglio
+    img_center = [ncols/2, nrows/2]; 
+    best_idx = -1; 
+    min_dist = Inf;
+    
+    for k = valid_indices
+        dist = norm(stats(k).Centroid - img_center);
+        if dist < min_dist
+            min_dist = dist;
+            best_idx = k;
+        end
+    end
+    
+    % 6. Ricostruzione Finale
+    mask_finale = false(nrows, ncols);
+    mask_finale(stats(best_idx).PixelIdxList) = true;
+
 end
