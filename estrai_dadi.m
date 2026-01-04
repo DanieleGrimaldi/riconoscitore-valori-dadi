@@ -49,6 +49,8 @@ function somma_dadi = estrai_dadi(frame_originale, namev, numf)
             % Estrazione Maschera Numero
             mask_numero = estrai_cifra(img_crop, alpha_crop);
             
+            salva_dump(img_crop, alpha_crop, namev, numf, i);
+
             % Se la maschera è valida, chiama il KNN
             if sum(mask_numero(:)) > 5 
                 valore = decodifica_cifra(mask_numero);
@@ -99,74 +101,43 @@ function somma_dadi = estrai_dadi(frame_originale, namev, numf)
     drawnow;
 end
 
-% =========================================================
-%  FUNZIONE ESTRAI_CIFRA (Logica "Recupero Totale")
-% =========================================================
-function mask_finale = estrai_cifra(img_rgb, alpha)
-    % Questa funzione implementa K-Means + Logica Baricentro
-    % (È la versione "Recupero Totale" che abbiamo perfezionato)
-
-    min_area = 20; % Soglia minima area (più bassa qui perché l'img è piccola)
-
-    % 1. Pulizia Input
-    if size(img_rgb, 3) == 4, img_rgb = img_rgb(:,:,1:3); end
+function salva_dump(img_rgb, alpha_mask, video_name, frame_idx, dado_idx)
+    % SALVA_DUMP
+    % Salva il ritaglio come PNG usando il parametro 'Alpha' di imwrite
     
-    % Gestione Alpha (se vuoto crea un dummy)
-    if isempty(alpha)
-        alpha = ones(size(img_rgb,1), size(img_rgb,2)); 
-        alpha([1,end],:) = 0; alpha(:,[1,end]) = 0;
+    output_dir = fullfile('test', 'numeri');
+    
+    % Crea la cartella se non esiste
+    if ~exist(output_dir, 'dir')
+        mkdir(output_dir);
     end
 
-    % 2. K-Means (LAB) su TUTTA l'immagine ritagliata
-    % Nota: Usiamo try-catch o replicates 1 per velocità e sicurezza su img piccole
+    % 1. Preparazione Alpha (deve essere uint8 o double)
+    if islogical(alpha_mask)
+        alpha_channel = uint8(alpha_mask) * 255;
+    else
+        alpha_channel = im2uint8(alpha_mask);
+    end
+
+    % 2. Preparazione Immagine RGB
+    % Se è in scala di grigi, la convertiamo in RGB per sicurezza
+    if size(img_rgb, 3) == 1
+        img_to_save = cat(3, img_rgb, img_rgb, img_rgb);
+    else
+        img_to_save = img_rgb; % È già RGB (MxNx3)
+    end
+
+    % 3. Nome file univoco
+    [~, v_name, ~] = fileparts(video_name);
+    fname = sprintf('%s_f%d_d%d.png', v_name, frame_idx, dado_idx);
+    full_path = fullfile(output_dir, fname);
+    
+    % 4. Scrittura su disco (CORRETTA)
+    % Passiamo l'immagine RGB come primo argomento
+    % Passiamo il canale Alpha separatamente con il tag 'Alpha'
     try
-        lab = rgb2lab(img_rgb);
-        ab = double(lab);
-        nrows = size(ab,1); ncols = size(ab,2);
-        data = reshape(ab, nrows*ncols, 3);
-        
-        [idx, ~] = kmeans(data, 2, 'Distance', 'sqeuclidean', 'Replicates', 1);
-        pixel_labels = reshape(idx, nrows, ncols);
-    catch
-        % Se K-means fallisce (img troppo piccola o uniforme), restituisci vuoto
-        mask_finale = false(size(alpha));
-        return;
+        imwrite(img_to_save, full_path, 'Alpha', alpha_channel);
+    catch ME
+        fprintf('Errore salvataggio dump: %s\n', ME.message);
     end
-    
-    % 3. Identificazione Sfondo (tramite Alpha del cerchio)
-    mask_trasparente = (alpha == 0);
-    
-    pixel_nella_trasparenza = pixel_labels(mask_trasparente);
-    bg_cluster = mode(pixel_nella_trasparenza);
-    
-    % 4. Maschera Grezza (TUTTO ciò che non è sfondo)
-    mask_raw = (pixel_labels ~= bg_cluster);
-
-    % 5. Selezione Baricentro (Conn 4)
-    cc = bwconncomp(mask_raw, 4); 
-    stats = regionprops(cc, 'Area', 'Centroid', 'PixelIdxList');
-    valid_indices = find([stats.Area] >= min_area);
-    
-    if isempty(valid_indices)
-        mask_finale = false(nrows, ncols);
-        return;
-    end
-    
-    % Trova l'oggetto più centrale nel ritaglio
-    img_center = [ncols/2, nrows/2]; 
-    best_idx = -1; 
-    min_dist = Inf;
-    
-    for k = valid_indices
-        dist = norm(stats(k).Centroid - img_center);
-        if dist < min_dist
-            min_dist = dist;
-            best_idx = k;
-        end
-    end
-    
-    % 6. Ricostruzione Finale
-    mask_finale = false(nrows, ncols);
-    mask_finale(stats(best_idx).PixelIdxList) = true;
-
 end
