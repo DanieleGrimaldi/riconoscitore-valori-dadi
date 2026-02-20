@@ -48,9 +48,5 @@ function maschera_roi = trova_maschera_vassoio(img_sfondo)
     maschera_roi = false(size(mask));
     
     % ...e accendiamo TUTTE le righe (da 1 a end) ma solo nelle colonne valide.
-    % Questo garantisce che sopra e sotto sia tutto valido, come hai chiesto.
     maschera_roi(:, x_inizio:x_fine) = true;
-    
-    % Opzionale: Visualizzazione per debug (puoi commentarla)
-    % figure; imshow(maschera_roi); title('ROI Calcolata (Solo bande laterali rimosse)');
 end

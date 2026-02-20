@@ -1,8 +1,4 @@
-% Se avete problemi a decodificare il video, avete bisogno dei codec.
-% Per Windows: https://codecguide.com/download_kl.htm
-%
 function process_video(filename)
-    close all;
 
     vidObj = VideoReader(filename);
     [~, videoName, ~] = fileparts(filename);
