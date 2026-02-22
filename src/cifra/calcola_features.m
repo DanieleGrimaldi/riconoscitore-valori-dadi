@@ -1,11 +1,6 @@
 function features = calcola_features(mask_binaria)
     % Restituisce [Circularity, EulerNumber, Eccentricity, Solidity, Hu1_Log, Hu2_Log]
     
-    if sum(mask_binaria(:)) == 0
-        features = zeros(1, 6); 
-        return;
-    end
-    
     % 1. Estrazione Geometria Base (1 sola forma garantita)
     stats = regionprops(mask_binaria, 'Area', 'EulerNumber', 'Eccentricity', 'Solidity', 'Perimeter');
     

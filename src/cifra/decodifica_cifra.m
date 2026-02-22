@@ -11,9 +11,13 @@ function numero_predetto = decodifica_cifra(mask_binaria)
             error('Errore: File modello_knn.mat non trovato!');
         end
     end
-
-    features = calcola_features(mask_binaria);
     
-    numero_predetto = predict(Mdl_Internal, features);
+    if sum(mask_binaria(:)) > 0 
+        features = calcola_features(mask_binaria);
+    
+        numero_predetto = predict(Mdl_Internal, features);
+    else
+        numero_predetto = 0;
+    end
 
 end
