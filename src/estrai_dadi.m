@@ -73,8 +73,6 @@ function [lista_maschere, lista_immagini, lista_bboxes] = gestione_blob(mask_blo
 end
 
 function valore = processa_dado(frame_rgb, mask_dado)
-
-
     valore = 0;
 
     %mask_cifra = estrai_cifra_bordi(frame_rgb,mask_dado);

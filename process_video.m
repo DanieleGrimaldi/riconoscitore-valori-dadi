@@ -12,7 +12,7 @@ function process_video(filename)
         vidFrame = readFrame(vidObj);
         frameNumber = frameNumber + 1;
         if mod(frameNumber, 2) ~= 0
-            process_frame(videoName, frameNumber, vidFrame); 
+            process_frame(videoName, vidFrame); 
         end
         
     end

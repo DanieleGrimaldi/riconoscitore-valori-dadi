@@ -11,7 +11,7 @@ function mask_finale = estrai_cifra(img, mask)
     mappa_label = separa_cluster_disconnessi(mappa_label);
     mask_finale = scegli_cluster(mappa_label);
     mask_finale = mask_finale > 0;
-    %salva_maschera(mappa_label);
+    %salva_maschera(mask_finale);
     %stampa_cluster(img, mappa_label);
 
 end
@@ -124,7 +124,7 @@ function img_quantizzata = quantizzazione_colore(img)
 end
 
 function salva_maschera(mask_finale)
-    cartella_destinazione = 'Maschere_Cifre';
+    cartella_destinazione = 'test/Maschere_Cifre';
     
     if ~exist(cartella_destinazione, 'dir')
         mkdir(cartella_destinazione);

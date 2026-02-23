@@ -1,4 +1,4 @@
-function process_frame( filename, frameNumber, videoFrame)
+function process_frame( filename, videoFrame)
 
     persistent lastFrameResize stableCount background lastVideoName
     
