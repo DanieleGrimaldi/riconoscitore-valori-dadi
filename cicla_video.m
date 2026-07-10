@@ -3,7 +3,7 @@ clear all;
 setup;
 tic;
 
-cartella = 'test/video';
+cartella = 'video';
 files = dir(fullfile(cartella, '*.mp4')); % Cambia *.mp4 se sono .avi o .mov
 
 fprintf('Trovati %d video da elaborare.\n', length(files));

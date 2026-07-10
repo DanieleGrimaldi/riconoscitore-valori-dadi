@@ -1,4 +1,5 @@
 function lista_separata = dividi_dadi(mask_complessa,img)
+
     punti_vertici = trova_centri_dadi(mask_complessa);
     
     % Se per qualche motivo (es. rumore anomalo) non trova centri validi, 
